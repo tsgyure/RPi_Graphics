@@ -3,6 +3,7 @@
 //*	Raspberry Pi Primitive Graphics Library							*
 //*	Todd S. Gyure, tsgyure@yahoo.com								*
 //*	08/18/20														*
+//*	V0.11	Minor issues corrected									*
 //*																	*
 //* Based on awesome info at 										*
 //* http://raspberrycompote.blogspot.com							*
