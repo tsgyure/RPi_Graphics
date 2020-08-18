@@ -2,7 +2,7 @@
 //*																	*
 //*	Raspberry Pi Primitive Graphics Library							*
 //*	Todd S. Gyure, tsgyure@yahoo.com								*
-//*	02/15/20														*
+//*	08/18/20														*
 //*																	*
 //* Based on awesome info at 										*
 //* http://raspberrycompote.blogspot.com							*
@@ -29,6 +29,7 @@
 
 
 #define	SUPPRESS_ERROR_MESS	0	// Suppress error messages?  Don't!
+#define	SUPPRESS_ERROR_STOP	1	// Suppress stop on error?
 #define	TRANSPOSE_Y			1	// Starts y at bottom - Don't change
 
 #ifndef	MAX_X
@@ -831,6 +832,10 @@ int		putPixel(int x, int y, int color)
 		if(!SUPPRESS_ERROR_MESS)
 		{
 			printf("putPixel Error - Invalid x: %d\n", x);
+			if(!SUPPRESS_ERROR_STOP)
+			{
+				exit(-1);
+			}
 		}
 		return(1);
 	}
@@ -840,6 +845,10 @@ int		putPixel(int x, int y, int color)
 		if(!SUPPRESS_ERROR_MESS)
 		{
 			printf("putPixel Error - Invalid y: %d\n", y);
+			if(!SUPPRESS_ERROR_STOP)
+			{
+				exit(-1);
+			}
 		}
 		return(1);
 	}
@@ -865,6 +874,12 @@ int		putPixel(int x, int y, int color)
 //	Read a pixel's current color in the current palette.
 int		getPixel(int x, int y)
 {
+ 	// Transpose y?
+	if(TRANSPOSE_Y)
+	{
+		y = MAX_Y - y;
+	}
+	
     // Calculate the pixel's byte offset inside the buffer
     unsigned int pix_offset = x + y * finfo.line_length;
 
