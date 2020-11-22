@@ -2,8 +2,7 @@
 //*																	*
 //*	Raspberry Pi Primitive Graphics Library							*
 //*	Todd S. Gyure, tsgyure@yahoo.com								*
-//*	08/18/20														*
-//*	V0.11	Minor issues corrected									*
+//*	02/15/20														*
 //*																	*
 //* Based on awesome info at 										*
 //* http://raspberrycompote.blogspot.com							*
@@ -154,7 +153,7 @@ const unsigned char CHARMAP[480]= 	   {0x0, 0x0, 0x0, 0x0, 0x0,
 
 // Hershey Vector Character Set
 // The Hershey fonts are a collection of vector fonts developed
-// c. 1967 by Dr. Allen Vincent Hershey at the Naval Weapons Laboratory
+// 1967 by Dr. Allen Vincent Hershey at the Naval Weapons Laboratory
 // Roman characters
 // This Roman character set provided by Paul Bourke
 // http://paulbourke.net/dataformats/hershey/
@@ -821,14 +820,16 @@ int		restoreGraphics(void)
 //	Draw a pixel in a specified color from the palette.
 int		putPixel(int x, int y, int color)
 {
+	int	prevColor;	// Previous color of pixel
+	
 	// Validate this stuff!
 	if(!graphics_have_been_initialized)
 	{
 		printf("Graphics have not been initialized.\n");
-		exit(1);
+		exit(-1);
 	}
 	
-	if(x > vinfo.xres - 1 || x < 0)
+	if((unsigned int)x > vinfo.xres - 1 || x < 0)
 	{
 		if(!SUPPRESS_ERROR_MESS)
 		{
@@ -846,12 +847,11 @@ int		putPixel(int x, int y, int color)
 		if(!SUPPRESS_ERROR_MESS)
 		{
 			printf("putPixel Error - Invalid y: %d\n", y);
-			if(!SUPPRESS_ERROR_STOP)
 			{
 				exit(-1);
 			}
 		}
-		return(1);
+		return(-1);
 	}
 
 	// Transpose y?
@@ -867,26 +867,30 @@ int		putPixel(int x, int y, int color)
 		color = getPixel(x, y);
 	}
 	
+	prevColor = getPixel(x, y);	// Get previous color for return value
+	
     // Now this is about the same as 'fbp[pix_offset] = value'
     *((char*)(fbp + pix_offset)) = color;
-	return(0);
+	return(prevColor);
 }
+
 
 //	Read a pixel's current color in the current palette.
 int		getPixel(int x, int y)
 {
- 	// Transpose y?
+	// Transpose y?
 	if(TRANSPOSE_Y)
 	{
 		y = MAX_Y - y;
 	}
-	
+
     // Calculate the pixel's byte offset inside the buffer
     unsigned int pix_offset = x + y * finfo.line_length;
 
     // Now this is about the same as 'color = fbp[pix_offset]'
     return(*((char*)(fbp + pix_offset)));
 }
+
 
 // Draw a line in the specified color.
 // If the first point (x0, y0) is (-1, -1),
@@ -901,7 +905,7 @@ int	drawLine(int x0, int y0, int x1, int y1, int color)
 	int err;
 	int ystep;
 	int	temp;
-	
+
 	// If first coordinate pair is (-1, -1),
 	// continue from last drawn line's endpoint.
 	static	int	lastX = -1;	// Save last values for continuation
@@ -918,6 +922,7 @@ int	drawLine(int x0, int y0, int x1, int y1, int color)
 		x0 = lastX;
 		y0 = lastY;
 	}
+
 	lastX = x1;
 	lastY = y1;
 
@@ -970,14 +975,14 @@ int	drawLine(int x0, int y0, int x1, int y1, int color)
 	{
 		if (steep)
 		{
-			if(putPixel(y0, x0, color))
+			if(putPixel(y0, x0, color) == -1)
 			{
 				return(1);
 			}
 		}
 		else
 		{
-			if(putPixel(x0, y0, color))
+			if(putPixel(x0, y0, color) == -1)
 			{
 				return(1);
 			}
@@ -989,7 +994,6 @@ int	drawLine(int x0, int y0, int x1, int y1, int color)
 			err += dx;
 		}
 	}
-//printf("(%d, %d) - (%d, %d)     color = %d\n", x0, y0, x1, y1, color); 	
 	return(0);
 }
 
@@ -1019,23 +1023,23 @@ int	drawCircle(int x0, int y0, int r, int color)
 	x = 0;
 	y = r;
 
-	if(putPixel(x0, y0, color))
+	if(putPixel(x0, y0, color) == -1)
 	{
 		return(1);
 	}
-	if(putPixel(x0, (y0+r), color))
+	if(putPixel(x0, (y0+r), color) == -1)
 	{
 		return(1);
 	}
-	if(putPixel(x0, (y0-r), color))
+	if(putPixel(x0, (y0-r), color) == -1)
 	{
 		return(1);
 	}
-	if(putPixel((x0+r), y0, color))
+	if(putPixel((x0+r), y0, color) == -1)
 	{
 		return(1);
 	}
-	if(putPixel((x0-r), y0, color))
+	if(putPixel((x0-r), y0, color) == -1)
 	{
 		return(1);
 	}
@@ -1052,35 +1056,35 @@ int	drawCircle(int x0, int y0, int r, int color)
 		ddF_x += 2;
 		f += ddF_x;
   
-		if(putPixel((x0 + x), (y0 + y), color))
+		if(putPixel((x0 + x), (y0 + y), color) == -1)
 		{
 			return(1);
 		}
-		if(putPixel((x0 - x), (y0 + y), color))
+		if(putPixel((x0 - x), (y0 + y), color) == -1)
 		{
 			return(1);
 		}
-		if(putPixel((x0 + x), (y0 - y), color))
+		if(putPixel((x0 + x), (y0 - y), color) == -1)
 		{
 			return(1);
 		}
-		if(putPixel((x0 - x), (y0 - y), color))
+		if(putPixel((x0 - x), (y0 - y), color) == -1)
 		{
 			return(1);
 		}
-		if(putPixel((x0 + y), (y0 + x), color))
+		if(putPixel((x0 + y), (y0 + x), color) == -1)
 		{
 			return(1);
 		}
-		if(putPixel((x0 - y), (y0 + x), color))
+		if(putPixel((x0 - y), (y0 + x), color) == -1)
 		{
 			return(1);
 		}
-		if(putPixel((x0 + y), (y0 - x), color))
+		if(putPixel((x0 + y), (y0 - x), color) == -1)
 		{
 			return(1);
 		}
-		if(putPixel((x0 - y), (y0 - x), color))
+		if(putPixel((x0 - y), (y0 - x), color) == -1)
 		{
 			return(1);
 		}
@@ -1165,27 +1169,27 @@ int		drawString(char *theString, int xpos, int ypos, int colorFG, int colorBG)
 //	Draw a character in the Hershey Vector Font.
 int		drawVectorChar(char charIn, int xpos, int ypos, int colorFG)
 {
-	int	fontIndex, pairCount, horizSpace, x0, y0, x1, y1, fontColor;
+	int	fontIndex, pairCount, horizSpace, x0, y0, x1, y1;
 	
 	fontIndex = 0;
 	// Get the number of vertex coordinate pairs for font character
 	pairCount = simplex[charIn - 32][fontIndex++];
-	
 	// Get standard spacing value for font character
 	horizSpace = simplex[charIn - 32][fontIndex++];
 	
 	// Get the first vertex coordinate pair for font character
 	x0 = simplex[charIn - 32][fontIndex++];
 	y0 = simplex[charIn - 32][fontIndex++];
-	fontColor = colorFG;
 	while(fontIndex <= pairCount * 2)
 	{
 		x1 = simplex[charIn - 32][fontIndex++];
 		y1 = simplex[charIn - 32][fontIndex++];
 		
+
 		if(x1 == -1 && y1 == -1)
-		{	// "Pen Up"
-			fontColor = COLOR_CLEAR;
+		{	// Move pen without drawing
+			x0 = simplex[charIn - 32][fontIndex++];
+			y0 = simplex[charIn - 32][fontIndex++];
 			x1 = simplex[charIn - 32][fontIndex++];
 			y1 = simplex[charIn - 32][fontIndex++];
 			if(x1 == -1 && y1 == -1)
@@ -1194,17 +1198,17 @@ int		drawVectorChar(char charIn, int xpos, int ypos, int colorFG)
 				return(-1);
 			}
 		}
-		if(drawLine(x0 + xpos, y0 + ypos, x1 + xpos, y1 + ypos, fontColor))
+
+		if(drawLine(x0 + xpos, y0 + ypos, x1 + xpos, y1 + ypos, colorFG))
 		{
 			return(-1);
 		}
 		x0 = x1;
 		y0 = y1;
-		// "Pen Down" by default
-		fontColor = colorFG;
 	}
 	return(horizSpace);
 }
+
 //***********************************************************
 //*	Draw a string of characters in the Hershey Vector Font.	*
 //***********************************************************
