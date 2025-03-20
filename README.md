@@ -4,4 +4,4 @@ V0.1, 200215  Initial Release
 
 This has only been tested on the Raspberry Pi 3B+
 
-** This library onluy works with Raspberry pPi Linux Buster and earlier **
+** This library onluy works with Raspberry RPi Linux Buster and earlier **
