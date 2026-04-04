@@ -1,13 +1,14 @@
-# Make for Raspberry Pi low level graphics test
+#	Make for Raspberry Pi low level graphics test
+#	Object-oriented Version
 
-runnit: graphicsTest.o graphics.o
-	gcc -o runnit graphicsTest.o graphics.c
+demo: demo.o graphics.o
+	gcc -o demo demo.o graphics.o  -lm
 	
-graphicsTest.o: graphicsTest.c
-	gcc -c graphicsTest.c
+demo.o: demo.c
+	gcc -c demo.c -o demo.o
 
 graphics.o: graphics.c graphics.h
-	gcc -c graphics.c
+	gcc -c graphics.c -o graphics.o
 
 clean:
 	rm *.o

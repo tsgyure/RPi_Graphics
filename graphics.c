@@ -2,7 +2,7 @@
 //*																	*
 //*	Raspberry Pi Primitive Graphics Library							*
 //*	Todd S. Gyure, tsgyure@yahoo.com								*
-//*	02/15/20														*
+//*	01/21/21														*
 //*																	*
 //* Based on awesome info at 										*
 //* http://raspberrycompote.blogspot.com							*
@@ -24,21 +24,11 @@
 #include	<linux/fb.h>
 #include	<sys/mman.h>
 #include	<sys/ioctl.h>
-
 #include	"graphics.h"
 
-
 #define	SUPPRESS_ERROR_MESS	0	// Suppress error messages?  Don't!
-#define	SUPPRESS_ERROR_STOP	1	// Suppress stop on error?
+#define	SUPPRESS_ERROR_STOP	0	// Suppress stop on error?
 #define	TRANSPOSE_Y			1	// Starts y at bottom - Don't change
-
-#ifndef	MAX_X
-	#define	MAX_X				1359
-#endif	// MAX_X
-
-#ifndef	MAX_Y
-	#define	MAX_Y				763
-#endif	// MAX_Y
 
 // Global Variables
 char		*fbp = 0;
@@ -49,6 +39,9 @@ int			graphics_have_been_initialized = 0;
 int			fbfd = 0;
 struct		fb_var_screeninfo orig_vinfo;
 long int	screenSize = 0;
+
+int			MAX_X;	// Maximum x, as determined by graphics init
+int			MAX_Y;	// Maximum y, as determined by graphics init
 
 // Raster
 // ASCII chars 32 thru 127
@@ -157,7 +150,7 @@ const unsigned char CHARMAP[480]= 	   {0x0, 0x0, 0x0, 0x0, 0x0,
 // Roman characters
 // This Roman character set provided by Paul Bourke
 // http://paulbourke.net/dataformats/hershey/
-int simplex[95][112] = {
+const int simplex[95][112] = {
     0,16, /* Ascii 32 */
    -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
    -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
@@ -729,7 +722,7 @@ int simplex[95][112] = {
    -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
    -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
 };
-
+const int *ptrVectorFont= &simplex[0][0];
 //*******************************************************
 //*	Initialize the graphics								*
 //*	You must run this prior to doing graphics stuff.	*
@@ -773,6 +766,8 @@ int		initGraphics(void)
 
     // map fb to user mem 
     screenSize = vinfo.xres * vinfo.yres;
+	MAX_X = vinfo.xres;
+	MAX_Y = vinfo.yres;
     fbp = (char*)mmap(0, 
               screenSize, 
               PROT_READ | PROT_WRITE, 
@@ -791,17 +786,20 @@ int		initGraphics(void)
 		memset(fbp, 0, screenSize);
 	}
 	graphics_have_been_initialized = 1;
-//	printf("Alleged x resolution: %d\n", vinfo.xres);
-//	printf("Alleged y resolution: %d\n", vinfo.yres);
 	return(0);
 }
 
 //*******************************************
 //*	Restore the graphics					*
-//*	Put stuff back the way is wuz.			*
 //*******************************************
 int		restoreGraphics(void)
 {
+	if(!graphics_have_been_initialized)
+	{
+		printf("Graphics not initialized - no need to restore.\n");
+		return(1);
+	}
+	
 	// Clean up your mess!
 	munmap(fbp, screenSize);
 	if(ioctl(fbfd, FBIOPUT_VSCREENINFO, &orig_vinfo))
@@ -828,13 +826,26 @@ int		putPixel(int x, int y, int color)
 		printf("Graphics have not been initialized.\n");
 		exit(-1);
 	}
+
+	if(color < 0 || color > 15)
+	{
+		if(!SUPPRESS_ERROR_MESS)
+		{
+			printf("putPixel Error - Invalid color: %d\n", color);
+			if(SUPPRESS_ERROR_STOP)
+			{
+				exit(-1);
+			}
+		}
+		return(1);		
+	}
 	
-	if((unsigned int)x > vinfo.xres - 1 || x < 0)
+	if(x > MAX_X || x < 0)
 	{
 		if(!SUPPRESS_ERROR_MESS)
 		{
 			printf("putPixel Error - Invalid x: %d\n", x);
-			if(!SUPPRESS_ERROR_STOP)
+			if(SUPPRESS_ERROR_STOP)
 			{
 				exit(-1);
 			}
@@ -848,7 +859,10 @@ int		putPixel(int x, int y, int color)
 		{
 			printf("putPixel Error - Invalid y: %d\n", y);
 			{
-				exit(-1);
+				if(SUPPRESS_ERROR_STOP)
+				{
+					exit(-1);
+				}
 			}
 		}
 		return(-1);
@@ -866,14 +880,14 @@ int		putPixel(int x, int y, int color)
 	{
 		color = getPixel(x, y);
 	}
-	
+
 	prevColor = getPixel(x, y);	// Get previous color for return value
 	
     // Now this is about the same as 'fbp[pix_offset] = value'
     *((char*)(fbp + pix_offset)) = color;
+
 	return(prevColor);
 }
-
 
 //	Read a pixel's current color in the current palette.
 int		getPixel(int x, int y)
@@ -891,14 +905,13 @@ int		getPixel(int x, int y)
     return(*((char*)(fbp + pix_offset)));
 }
 
-
 // Draw a line in the specified color.
 // If the first point (x0, y0) is (-1, -1),
 //	the line is drawn from the previously drawn line's
 //	(x1, y1) point.
 int	drawLine(int x0, int y0, int x1, int y1, int color)
 {
-	int	intAbsDiff(int number1, int number2);
+//	int	intAbsDiff(int number1, int number2);
 
 	int steep;
 	int dx, dy;
@@ -926,10 +939,10 @@ int	drawLine(int x0, int y0, int x1, int y1, int color)
 	lastX = x1;
 	lastY = y1;
 
-	temp = intAbsDiff(y1, y0);
-	temp = intAbsDiff(x1, x0);
+	temp = abs(y1 - y0);
+	temp = abs(x1 - x0);
 	
-	steep = intAbsDiff(y1, y0) > intAbsDiff(x1, x0);
+	steep = abs(y1 - y0) > abs(x1 - x0);
 	if (steep)
 	{
 		//swap(x0, y0);
@@ -959,7 +972,7 @@ int	drawLine(int x0, int y0, int x1, int y1, int color)
 	}
 
 	dx = x1 - x0;
-	dy = intAbsDiff(y1, y0);
+	dy = abs(y1 - y0);
 	err = dx / 2;
 
 	if (y0 < y1)
@@ -996,17 +1009,22 @@ int	drawLine(int x0, int y0, int x1, int y1, int color)
 	}
 	return(0);
 }
-
+/*
 // Determine the absolute value of the differential of two integers.
 //	Used by drawLine function.
-int			intAbsDiff(int number1, int number2)
+int intAbsDiff(int number1, int number2)
 {
+	return(abs(number1 - number2));
+// The following is not needed if the previous works
+	
 	if(number1 > number2)
 	{
 		return(number1 - number2);
 	}
 	return(number2 - number1);
+
 }
+*/
 
 // Draw a circle in the specified color.
 int	drawCircle(int x0, int y0, int r, int color)
@@ -1023,10 +1041,6 @@ int	drawCircle(int x0, int y0, int r, int color)
 	x = 0;
 	y = r;
 
-	if(putPixel(x0, y0, color) == -1)
-	{
-		return(1);
-	}
 	if(putPixel(x0, (y0+r), color) == -1)
 	{
 		return(1);
@@ -1091,16 +1105,17 @@ int	drawCircle(int x0, int y0, int r, int color)
 	}
 	return(0);
 }
-// Draw a rectamgle in the specified color.
-int		drawRect(int x0, int y0, int x1, int y1, int color, int fill)
+
+// Draw a rectangle in the specified color.
+int drawRect(int x0, int y0, int x1, int y1, int color, int fill)
 {
 	int	temp;
 	if(fill == 0)	// Just draw a box
 	{
 		drawLine(x0, y0, x1, y0, color);
-		drawLine(x1, y0, x1, y1, color);
-		drawLine(x1, y1, x0, y1, color);
-		drawLine(x0, y1, x0, y0, color);
+		drawLine(-1, -1, x1, y1, color);
+		drawLine(-1, -1, x0, y1, color);
+		drawLine(-1, -1, x0, y0, color);
 	}
 	else	// Draw a filled box
 	{
@@ -1116,6 +1131,30 @@ int		drawRect(int x0, int y0, int x1, int y1, int color, int fill)
 		}
 	}
 	return(0);
+}
+// Flood fill
+// Creates Segmentation Fault when recursion gets too deep.
+int	floodFill(int x, int y, int colorNew, int colorOld)
+{
+    // Check current pixel is the existing color or not
+    if (getPixel(x, y) == colorOld)
+    {
+         // Put new pixel with new color
+        putPixel(x, y, colorNew);
+ 
+        // Recursive call for bottom pixel fill
+        floodFill(x + 1, y, colorNew, colorOld);
+ 
+        // Recursive call for top pixel fill
+        floodFill(x - 1, y, colorNew, colorOld);
+ 
+        // Recursive call for right pixel fill
+        floodFill(x, y + 1, colorNew, colorOld);
+ 
+        // Recursive call for left pixel fill
+        floodFill(x, y - 1, colorNew, colorOld);
+    }
+    return(0);
 }
 
 // Clear the screen with the specified color
@@ -1166,58 +1205,88 @@ int		drawString(char *theString, int xpos, int ypos, int colorFG, int colorBG)
 	}
 	return(0);
 }
-//	Draw a character in the Hershey Vector Font.
-int		drawVectorChar(char charIn, int xpos, int ypos, int colorFG)
+
+//	Draw a character in the Hershey Vector Font... WITH SCALING!
+int		drawVectorChar(char charIn, int xpos, int ypos, int colorFG, float scale)
 {
 	int	fontIndex, pairCount, horizSpace, x0, y0, x1, y1;
+	int	xSave, ySave;
+	const int *ptrFontData;
+
+// MAY NEED TO ADJUST FOR OTHER FONTS !!!
+	if(charIn < 32 || charIn > 126)
+	{
+		printf("***** drawVectorChar() Error inavlid character - %d\n", charIn);
+		return(1);
+	}
 	
+	ptrFontData = ptrVectorFont;
+	while(charIn - 32)	// Increment index to correct char.
+	{
+// MAY NEED TO ADJUST FOR OTHER FONTS !!!
+		ptrFontData += 112;	// Jump to next set of char data
+		charIn--;
+	}
+
 	fontIndex = 0;
 	// Get the number of vertex coordinate pairs for font character
-	pairCount = simplex[charIn - 32][fontIndex++];
+	pairCount = *ptrFontData++; fontIndex++;
 	// Get standard spacing value for font character
-	horizSpace = simplex[charIn - 32][fontIndex++];
+	horizSpace = *ptrFontData++; fontIndex++;
 	
 	// Get the first vertex coordinate pair for font character
-	x0 = simplex[charIn - 32][fontIndex++];
-	y0 = simplex[charIn - 32][fontIndex++];
+	x0 = *ptrFontData++; fontIndex++;
+	y0 = *ptrFontData++; fontIndex++;
 	while(fontIndex <= pairCount * 2)
 	{
-		x1 = simplex[charIn - 32][fontIndex++];
-		y1 = simplex[charIn - 32][fontIndex++];
+		x1 = *ptrFontData++; fontIndex++;;
+		y1 = *ptrFontData++; fontIndex++;;
+		xSave = x1;
+		ySave = y1;
 		
+		if(x1 == -1 && y1 == -1)	// Move pen without drawing
+		{
+			x0 = *ptrFontData++; fontIndex++;;
+			y0 = *ptrFontData++; fontIndex++;;
 
-		if(x1 == -1 && y1 == -1)
-		{	// Move pen without drawing
-			x0 = simplex[charIn - 32][fontIndex++];
-			y0 = simplex[charIn - 32][fontIndex++];
-			x1 = simplex[charIn - 32][fontIndex++];
-			y1 = simplex[charIn - 32][fontIndex++];
+			x1 = *ptrFontData++; fontIndex++;;
+			y1 = *ptrFontData++; fontIndex++;;
+			xSave = x1;
+			ySave = y1;
+
+			// This should NEVER be true.
 			if(x1 == -1 && y1 == -1)
 			{
 				printf("Two -1 coordinates in a row!\n");
 				return(-1);
 			}
 		}
+		
+		// Adjust for scaling
+		x0 = (float)x0 * scale;
+		x1 = (float)x1 * scale;
+		y0 = (float)y0 * scale;
+		y1 = (float)y1 * scale;
 
 		if(drawLine(x0 + xpos, y0 + ypos, x1 + xpos, y1 + ypos, colorFG))
 		{
+			printf("***** Error drawing vector character. *****\n");
 			return(-1);
 		}
-		x0 = x1;
-		y0 = y1;
+		x0 = xSave;
+		y0 = ySave;
 	}
-	return(horizSpace);
+	// Return scaled, inter-character spacing.
+	return((int)((float)horizSpace * scale));
 }
 
-//***********************************************************
-//*	Draw a string of characters in the Hershey Vector Font.	*
-//***********************************************************
-int	drawVectorString(char *theString, int xpos, int ypos, int colorFG)
+//	Draw a string of characters in the Hershey Vector Font.	
+int	drawVectorString(char *theString, int xpos, int ypos, int colorFG, float scale)
 {
 	int	horizSpace;
 	while(*theString != '\0')
 	{
-		horizSpace = drawVectorChar(*theString++, xpos, ypos, colorFG);
+		horizSpace = drawVectorChar(*theString++, xpos, ypos, colorFG, scale);
 		if(horizSpace < 0)
 		{
 			return(1);
